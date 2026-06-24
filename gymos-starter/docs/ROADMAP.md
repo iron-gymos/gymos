@@ -39,3 +39,11 @@
 - LINE reports.
 - PDF/export.
 - EXP, levels, ranks and gamified dashboards.
+
+
+## Current Phase 2 Update
+
+Phase 2 adds the first real authenticated workspace at `/app`.
+The dashboard now reads live summary data from Supabase via `get_app_dashboard_summary()`.
+
+Next recommended phase: Customer OS CRUD.

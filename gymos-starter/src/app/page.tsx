@@ -16,7 +16,7 @@ export default function HomePage() {
             <p>Next.js + Supabase gym management system</p>
           </div>
         </div>
-        <div className="badge">V2 Core Build</div>
+        <div className="badge">V2 Phase 2</div>
       </header>
 
       <section className="hero">
@@ -28,10 +28,10 @@ export default function HomePage() {
             Run your gym like an <span>operating system.</span>
           </h2>
           <p className="hero-copy">
-            Iron Gym OS V2 is being rebuilt from a clean Supabase core schema. This starter page proves the web app, GitHub repo and Vercel deployment are connected. Next step is login, OWNER bootstrap, customer, sales and trainer workflows.
+            Iron Gym OS V2 is being rebuilt from a clean Supabase core schema. This starter page proves the web app, GitHub repo and Vercel deployment are connected. Login and OWNER bootstrap are ready. Phase 2 adds a live app workspace and real Supabase dashboard summary.
           </p>
           <div className="actions">
-            <a className="button primary" href="/login">Login / Bootstrap OWNER</a>
+            <a className="button primary" href="/app">Open App Workspace</a>
             <a className="button" href="#status">View system status</a>
             <a className="button" href="https://github.com/iron-gymos/gymos" target="_blank" rel="noreferrer">Open GitHub repo</a>
           </div>
@@ -50,7 +50,7 @@ export default function HomePage() {
             </div>
             <div className="status-row">
               <span className="status-label"><Dumbbell size={16} /> Database schema</span>
-              <span className="status-value ok">Migration 001-002</span>
+              <span className="status-value ok">Migration 001-005</span>
             </div>
           </div>
         </aside>
