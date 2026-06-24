@@ -1,29 +1,38 @@
-# GymOS / Iron Gym OS V2
+# gymos
 
-Gym management system built with Next.js and Supabase.
+Iron Gym OS V2 - Gym management system built with Next.js and Supabase.
 
-## Stack
+## Current version
+Phase 1 starter with:
 
-- Frontend: Next.js + React + TypeScript
-- Database/Auth: Supabase
-- Deployment: Vercel
-- Automation layer later: Google Apps Script, LINE reports, PDF/export, Google Calendar
+- Vercel-ready Next.js app
+- Supabase environment variable checks
+- Login page
+- First OWNER bootstrap flow using `bootstrap_current_user_as_owner`
+- Starter dashboard / system status page
 
-## Local development
+## Environment variables
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://wqclubzthcjbrbptbldh.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-or-publishable-key
+```
+
+Do not use the Supabase service role key in the frontend.
+
+## Run locally
 
 ```bash
 npm install
-cp .env.example .env.local
 npm run dev
 ```
 
 Open http://localhost:3000
 
-## Required environment variables
+## Vercel
 
-```env
-NEXT_PUBLIC_SUPABASE_URL=https://wqclubzthcjbrbptbldh.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-or-publishable-key
+Root Directory:
+
+```text
+gymos-starter
 ```
-
-Do not put the Supabase `service_role` key in the frontend or Vercel public environment variables.
