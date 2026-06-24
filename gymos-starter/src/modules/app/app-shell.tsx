@@ -113,32 +113,89 @@ type CustomerDetail = {
   packages: Array<Record<string, string | number | null>>;
 };
 
+type SaleProduct = {
+  id: string;
+  productKind: "MB" | "PT";
+  packageGroup: "MB" | "PT";
+  category: string;
+  code: string | null;
+  name: string;
+  description: string | null;
+  defaultPrice: number;
+  defaultDurationDays: number | null;
+  defaultSessionCount: number | null;
+  isActive: boolean;
+};
+
+type PackageProductsForSale = {
+  membershipProducts: SaleProduct[];
+  ptProducts: SaleProduct[];
+};
+
+type SaleOsSummary = {
+  stats: {
+    membershipProducts: number;
+    ptProducts: number;
+    invoices: number;
+    monthlySales: number;
+    paidThisMonth: number;
+    activeCustomerPackages: number;
+  };
+  recentInvoices: Array<Record<string, string | number | null>>;
+  generatedAt: string;
+};
+
+type SalesInvoiceList = {
+  total: number;
+  items: Array<{
+    id: string;
+    invoiceNo: string | null;
+    customer: { id: string; code: string | null; name: string; phone: string | null };
+    status: string;
+    totalAmount: number;
+    paidAmount: number;
+    paymentMethod: string | null;
+    soldAt: string;
+  }>;
+};
+
+type SaleCartItem = {
+  productKind: "MB" | "PT";
+  productId: string;
+  code: string | null;
+  name: string;
+  category: string;
+  quantity: number;
+  unitPrice: number;
+  discountAmount: number;
+};
+
 type AuthState = "checking" | "signed-out" | "ready" | "error";
 type ActiveSection = "dashboard" | "customers" | "packages" | "sales" | "training" | "admin";
 
 const navItems = [
   { key: "dashboard", label: "Dashboard", icon: LayoutDashboard, status: "live" },
   { key: "customers", label: "Customers", icon: UsersRound, status: "live" },
-  { key: "packages", label: "Packages", icon: PackageCheck, status: "soon" },
-  { key: "sales", label: "Sales", icon: BadgeDollarSign, status: "soon" },
+  { key: "packages", label: "Packages", icon: PackageCheck, status: "live" },
+  { key: "sales", label: "Sales", icon: BadgeDollarSign, status: "live" },
   { key: "training", label: "Training", icon: Dumbbell, status: "soon" },
   { key: "admin", label: "Admin", icon: ShieldCheck, status: "soon" }
 ] as const;
 
 const nextModules = [
   {
-    title: "Package OS",
-    copy: "Sell Membership, PT, PL and Kick Fit in one invoice, then activate customer packages.",
+    title: "Package + Sale OS",
+    copy: "Membership and PT products are now split into real product tables and ready for invoices.",
     status: "Phase 4"
-  },
-  {
-    title: "Sales OS",
-    copy: "Multi-item invoices, payment tracking, package activation and monthly sales reports.",
-    status: "Phase 5"
   },
   {
     title: "Training OS",
     copy: "Trainer assignment, session booking, Google Calendar sync and session logs.",
+    status: "Phase 5"
+  },
+  {
+    title: "Automation Layer",
+    copy: "LINE reports, PDFs, exports and calendar automation after core operations are stable.",
     status: "Phase 6"
   }
 ];
@@ -182,6 +239,17 @@ const emptyBodyMeasurementForm = {
   thighLeftCm: "",
   thighRightCm: "",
   notes: ""
+};
+
+const emptySaleForm = {
+  customerId: "",
+  productValue: "",
+  quantity: "1",
+  unitPrice: "",
+  discountAmount: "0",
+  invoiceDiscountAmount: "0",
+  paidAmount: "",
+  paymentMethod: "TRANSFER"
 };
 
 function numberFormat(value: number | null | undefined) {
@@ -255,6 +323,14 @@ export function AppShell() {
   const [customersLoading, setCustomersLoading] = useState(false);
   const [savingCustomer, setSavingCustomer] = useState(false);
   const [savingBodyRecord, setSavingBodyRecord] = useState(false);
+  const [packageProducts, setPackageProducts] = useState<PackageProductsForSale>({ membershipProducts: [], ptProducts: [] });
+  const [saleSummary, setSaleSummary] = useState<SaleOsSummary | null>(null);
+  const [invoiceList, setInvoiceList] = useState<SalesInvoiceList>({ total: 0, items: [] });
+  const [saleForm, setSaleForm] = useState(emptySaleForm);
+  const [saleCart, setSaleCart] = useState<SaleCartItem[]>([]);
+  const [saleMessage, setSaleMessage] = useState("");
+  const [salesLoading, setSalesLoading] = useState(false);
+  const [savingSale, setSavingSale] = useState(false);
 
   const loadDashboard = useCallback(async () => {
     setLoading(true);
@@ -311,6 +387,40 @@ export function AppShell() {
     }
   }, [customerSearch]);
 
+  const loadSaleOs = useCallback(async () => {
+    if (!supabase) return;
+    setSalesLoading(true);
+    setSaleMessage("");
+
+    try {
+      const [productsResult, summaryResult, invoicesResult, customersResult] = await Promise.all([
+        supabase.rpc("list_package_products_for_sale"),
+        supabase.rpc("get_sale_os_summary"),
+        supabase.rpc("list_sales_invoices_for_app", { p_limit: 50, p_offset: 0 }),
+        supabase.rpc("list_customers_for_app", {
+          p_search: null,
+          p_status: null,
+          p_limit: 100,
+          p_offset: 0
+        })
+      ]);
+
+      if (productsResult.error) throw productsResult.error;
+      if (summaryResult.error) throw summaryResult.error;
+      if (invoicesResult.error) throw invoicesResult.error;
+      if (customersResult.error) throw customersResult.error;
+
+      setPackageProducts((productsResult.data as PackageProductsForSale) ?? { membershipProducts: [], ptProducts: [] });
+      setSaleSummary(summaryResult.data as SaleOsSummary);
+      setInvoiceList((invoicesResult.data as SalesInvoiceList) ?? { total: 0, items: [] });
+      setCustomerList((customersResult.data as CustomerListResponse) ?? { total: 0, items: [] });
+    } catch (error) {
+      setSaleMessage(error instanceof Error ? error.message : "Could not load Sale OS.");
+    } finally {
+      setSalesLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!isSupabaseConfigured) {
       setAuthState("error");
@@ -328,10 +438,26 @@ export function AppShell() {
     }
   }, [activeSection, authState, loadCustomers]);
 
+  useEffect(() => {
+    if (authState === "ready" && (activeSection === "packages" || activeSection === "sales")) {
+      void loadSaleOs();
+    }
+  }, [activeSection, authState, loadSaleOs]);
+
   const packageRows = useMemo(() => {
     if (!summary) return [];
     return Object.entries(summary.packageBreakdown).map(([category, total]) => ({ category, total }));
   }, [summary]);
+
+  const allSaleProducts = useMemo(() => [
+    ...packageProducts.membershipProducts,
+    ...packageProducts.ptProducts
+  ], [packageProducts]);
+
+  const saleSubtotal = useMemo(() => saleCart.reduce((total, item) => total + (item.quantity * item.unitPrice), 0), [saleCart]);
+  const saleItemDiscount = useMemo(() => saleCart.reduce((total, item) => total + item.discountAmount, 0), [saleCart]);
+  const saleInvoiceDiscount = optionalNumber(saleForm.invoiceDiscountAmount) ?? 0;
+  const saleTotal = Math.max(saleSubtotal - saleItemDiscount - saleInvoiceDiscount, 0);
 
   const defaultBranchId = customerSummary?.branches[0]?.id ?? summary?.branches[0]?.id ?? "";
 
@@ -466,6 +592,94 @@ export function AppShell() {
     }
   }
 
+  function handleAddSaleItem() {
+    const [productKind, productId] = saleForm.productValue.split(":") as ["MB" | "PT", string];
+    const product = allSaleProducts.find((item) => item.productKind === productKind && item.id === productId);
+    if (!product) {
+      setSaleMessage("Please select a package product.");
+      return;
+    }
+
+    const quantity = Math.max(optionalNumber(saleForm.quantity) ?? 1, 1);
+    const unitPrice = optionalNumber(saleForm.unitPrice) ?? Number(product.defaultPrice ?? 0);
+    const discountAmount = Math.max(optionalNumber(saleForm.discountAmount) ?? 0, 0);
+
+    setSaleCart((items) => [
+      ...items,
+      {
+        productKind: product.productKind,
+        productId: product.id,
+        code: product.code,
+        name: product.name,
+        category: product.category,
+        quantity,
+        unitPrice,
+        discountAmount
+      }
+    ]);
+
+    setSaleForm({ ...saleForm, productValue: "", quantity: "1", unitPrice: "", discountAmount: "0" });
+    setSaleMessage("");
+  }
+
+  function handleSelectSaleProduct(value: string) {
+    const [productKind, productId] = value.split(":") as ["MB" | "PT", string];
+    const product = allSaleProducts.find((item) => item.productKind === productKind && item.id === productId);
+    setSaleForm({ ...saleForm, productValue: value, unitPrice: product ? String(product.defaultPrice ?? 0) : "" });
+  }
+
+  async function handleCreateSaleInvoice(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!supabase) return;
+
+    if (!saleForm.customerId) {
+      setSaleMessage("Please select a customer.");
+      return;
+    }
+
+    if (!defaultBranchId) {
+      setSaleMessage("No branch is available for sale creation.");
+      return;
+    }
+
+    if (saleCart.length === 0) {
+      setSaleMessage("Please add at least one package item.");
+      return;
+    }
+
+    setSavingSale(true);
+    setSaleMessage("");
+
+    try {
+      const { data, error } = await supabase.rpc("create_sale_invoice_for_app", {
+        p_branch_id: defaultBranchId,
+        p_customer_id: saleForm.customerId,
+        p_items: saleCart.map((item) => ({
+          productKind: item.productKind,
+          productId: item.productId,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          discountAmount: item.discountAmount
+        })),
+        p_payment_method: saleForm.paymentMethod,
+        p_paid_amount: optionalNumber(saleForm.paidAmount),
+        p_discount_amount: optionalNumber(saleForm.invoiceDiscountAmount) ?? 0,
+        p_notes: null
+      });
+
+      if (error) throw error;
+
+      setSaleCart([]);
+      setSaleForm(emptySaleForm);
+      setSaleMessage(`Invoice created: ${(data as { invoiceNo?: string })?.invoiceNo ?? "success"}`);
+      await Promise.all([loadDashboard(), loadSaleOs(), loadCustomers()]);
+    } catch (error) {
+      setSaleMessage(error instanceof Error ? error.message : "Could not create sale invoice.");
+    } finally {
+      setSavingSale(false);
+    }
+  }
+
   if (authState === "checking" || loading) {
     return (
       <main className="workspace-loading">
@@ -571,7 +785,7 @@ export function AppShell() {
               <DashboardStatCard icon={Boxes} title="Active Packages" value={numberFormat(stats.activePackages)} copy="Purchased packages currently active" />
               <DashboardStatCard icon={BadgeDollarSign} title="Monthly Sales" value={currencyFormat(stats.monthlySales)} copy="Issued sales this month" />
               <DashboardStatCard icon={CalendarCheck} title="Sessions" value={numberFormat(stats.monthlySessions)} copy="Training sessions this month" />
-              <DashboardStatCard icon={ClipboardList} title="Package Products" value={numberFormat(stats.packageProducts)} copy="Membership, PT, PL and Kick Fit" />
+              <DashboardStatCard icon={ClipboardList} title="Package Products" value={numberFormat(stats.packageProducts)} copy="MB + PT product masters" />
               <DashboardStatCard icon={Dumbbell} title="Programs" value={numberFormat(stats.trainingPrograms)} copy="Training program templates" />
               <DashboardStatCard icon={UserRound} title="Staff" value={numberFormat(stats.staff)} copy="Active staff linked to branches" />
             </section>
@@ -889,12 +1103,237 @@ export function AppShell() {
           </section>
         ) : null}
 
-        {activeSection !== "dashboard" && activeSection !== "customers" ? (
+        {activeSection === "packages" ? (
+          <section className="customer-os">
+            <header className="workspace-header">
+              <div>
+                <p className="eyebrow">Phase 4</p>
+                <h1>Package OS</h1>
+                <p>Separated product masters: Membership products and PT/service products.</p>
+              </div>
+              <div className="workspace-header-actions">
+                <button className="button primary" onClick={() => void loadSaleOs()} type="button">
+                  {salesLoading ? <Loader2 className="spin" size={16} /> : null} Refresh
+                </button>
+              </div>
+            </header>
+
+            <section className="workspace-stat-grid customer-stat-grid">
+              <DashboardStatCard icon={PackageCheck} title="Membership Products" value={numberFormat(packageProducts.membershipProducts.length || saleSummary?.stats.membershipProducts)} copy="MB package master records" />
+              <DashboardStatCard icon={Dumbbell} title="PT Products" value={numberFormat(packageProducts.ptProducts.length || saleSummary?.stats.ptProducts)} copy="PT / PL / KF / SM / KID" />
+              <DashboardStatCard icon={Boxes} title="Active Packages" value={numberFormat(saleSummary?.stats.activeCustomerPackages)} copy="Customer-owned packages" />
+              <DashboardStatCard icon={BadgeDollarSign} title="Monthly Sales" value={currencyFormat(saleSummary?.stats.monthlySales)} copy="Issued sales this month" />
+            </section>
+
+            {saleMessage ? <div className="notice success customer-notice">{saleMessage}</div> : null}
+
+            <section className="workspace-panels">
+              <article className="card workspace-panel">
+                <div className="panel-header">
+                  <div>
+                    <p className="eyebrow">Membership</p>
+                    <h2>packagemembership_products</h2>
+                  </div>
+                  <span className="badge">{packageProducts.membershipProducts.length} items</span>
+                </div>
+                <div className="table-like">
+                  {packageProducts.membershipProducts.map((product) => (
+                    <div className="table-row" key={product.id}>
+                      <div>
+                        <strong>{product.name}</strong>
+                        <span>{product.code} · {product.defaultDurationDays ?? 0} days</span>
+                      </div>
+                      <span className="status-value ok">{currencyFormat(product.defaultPrice)}</span>
+                    </div>
+                  ))}
+                </div>
+              </article>
+
+              <article className="card workspace-panel">
+                <div className="panel-header">
+                  <div>
+                    <p className="eyebrow">PT Group</p>
+                    <h2>packagept_products</h2>
+                  </div>
+                  <span className="badge">{packageProducts.ptProducts.length} items</span>
+                </div>
+                <div className="table-like">
+                  {packageProducts.ptProducts.map((product) => (
+                    <div className="table-row" key={product.id}>
+                      <div>
+                        <strong>{product.name}</strong>
+                        <span>{product.code} · {product.category.replaceAll("_", " ")} · {product.defaultSessionCount ?? 0} sessions</span>
+                      </div>
+                      <span className="status-value ok">{currencyFormat(product.defaultPrice)}</span>
+                    </div>
+                  ))}
+                </div>
+              </article>
+            </section>
+          </section>
+        ) : null}
+
+        {activeSection === "sales" ? (
+          <section className="customer-os">
+            <header className="workspace-header">
+              <div>
+                <p className="eyebrow">Phase 4</p>
+                <h1>Sale OS</h1>
+                <p>Create one invoice with multiple MB + PT package items and activate customer packages automatically.</p>
+              </div>
+              <div className="workspace-header-actions">
+                <button className="button" onClick={() => void loadSaleOs()} type="button">
+                  {salesLoading ? <Loader2 className="spin" size={16} /> : null} Refresh
+                </button>
+              </div>
+            </header>
+
+            <section className="workspace-stat-grid customer-stat-grid">
+              <DashboardStatCard icon={BadgeDollarSign} title="Monthly Sales" value={currencyFormat(saleSummary?.stats.monthlySales)} copy="Issued sales this month" />
+              <DashboardStatCard icon={BadgeDollarSign} title="Paid This Month" value={currencyFormat(saleSummary?.stats.paidThisMonth)} copy="Collected payments" />
+              <DashboardStatCard icon={ClipboardList} title="Invoices" value={numberFormat(saleSummary?.stats.invoices)} copy="All invoices in scope" />
+              <DashboardStatCard icon={Boxes} title="Active Packages" value={numberFormat(saleSummary?.stats.activeCustomerPackages)} copy="Auto-created from sales" />
+            </section>
+
+            {saleMessage ? <div className="notice success customer-notice">{saleMessage}</div> : null}
+
+            <section className="workspace-panels">
+              <article className="card workspace-panel">
+                <div className="panel-header">
+                  <div>
+                    <p className="eyebrow">New Invoice</p>
+                    <h2>Sell MB + PT packages</h2>
+                  </div>
+                  <span className="badge">{saleCart.length} cart items</span>
+                </div>
+
+                <form className="customer-form" onSubmit={handleCreateSaleInvoice}>
+                  <label className="wide-field">
+                    Customer
+                    <select value={saleForm.customerId} onChange={(event) => setSaleForm({ ...saleForm, customerId: event.target.value })}>
+                      <option value="">Select customer</option>
+                      {customerList.items.map((customer) => (
+                        <option key={customer.id} value={customer.id}>{customer.displayName} · {customer.phone ?? customer.customerCode}</option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="wide-field">
+                    Product
+                    <select value={saleForm.productValue} onChange={(event) => handleSelectSaleProduct(event.target.value)}>
+                      <option value="">Select package product</option>
+                      <optgroup label="Membership">
+                        {packageProducts.membershipProducts.map((product) => (
+                          <option key={product.id} value={`MB:${product.id}`}>{product.code} · {product.name}</option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="PT / PL / KF / SM / KID">
+                        {packageProducts.ptProducts.map((product) => (
+                          <option key={product.id} value={`PT:${product.id}`}>{product.code} · {product.name}</option>
+                        ))}
+                      </optgroup>
+                    </select>
+                  </label>
+
+                  <label>
+                    Quantity
+                    <input value={saleForm.quantity} onChange={(event) => setSaleForm({ ...saleForm, quantity: event.target.value })} />
+                  </label>
+                  <label>
+                    Unit price
+                    <input value={saleForm.unitPrice} onChange={(event) => setSaleForm({ ...saleForm, unitPrice: event.target.value })} />
+                  </label>
+                  <label>
+                    Item discount
+                    <input value={saleForm.discountAmount} onChange={(event) => setSaleForm({ ...saleForm, discountAmount: event.target.value })} />
+                  </label>
+                  <label>
+                    Payment method
+                    <select value={saleForm.paymentMethod} onChange={(event) => setSaleForm({ ...saleForm, paymentMethod: event.target.value })}>
+                      <option value="CASH">Cash</option>
+                      <option value="TRANSFER">Transfer</option>
+                      <option value="QR">QR</option>
+                      <option value="CREDIT_CARD">Credit card</option>
+                      <option value="OTHER">Other</option>
+                    </select>
+                  </label>
+
+                  <div className="form-actions wide-field">
+                    <button className="button" onClick={handleAddSaleItem} type="button"><Plus size={16} /> Add item</button>
+                  </div>
+
+                  <div className="wide-field table-like">
+                    {saleCart.length === 0 ? <div className="empty-inline">No sale items yet.</div> : null}
+                    {saleCart.map((item, index) => (
+                      <div className="table-row" key={`${item.productId}-${index}`}>
+                        <div>
+                          <strong>{item.name}</strong>
+                          <span>{item.productKind} · {item.code} · Qty {item.quantity} · Discount {currencyFormat(item.discountAmount)}</span>
+                        </div>
+                        <div className="customer-row-meta">
+                          <span className="status-value ok">{currencyFormat((item.quantity * item.unitPrice) - item.discountAmount)}</span>
+                          <button className="module-link" onClick={() => setSaleCart((items) => items.filter((_, itemIndex) => itemIndex !== index))} type="button">Remove</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <label>
+                    Invoice discount
+                    <input value={saleForm.invoiceDiscountAmount} onChange={(event) => setSaleForm({ ...saleForm, invoiceDiscountAmount: event.target.value })} />
+                  </label>
+                  <label>
+                    Paid amount
+                    <input placeholder={String(saleTotal)} value={saleForm.paidAmount} onChange={(event) => setSaleForm({ ...saleForm, paidAmount: event.target.value })} />
+                  </label>
+                  <div className="health-box wide-field">
+                    <p><strong>Subtotal:</strong> {currencyFormat(saleSubtotal)}</p>
+                    <p><strong>Item discounts:</strong> {currencyFormat(saleItemDiscount)}</p>
+                    <p><strong>Invoice discount:</strong> {currencyFormat(saleInvoiceDiscount)}</p>
+                    <p><strong>Total:</strong> {currencyFormat(saleTotal)}</p>
+                  </div>
+
+                  <div className="form-actions wide-field">
+                    <button className="button primary" disabled={savingSale} type="submit">
+                      {savingSale ? <Loader2 className="spin" size={16} /> : null} Create invoice + activate packages
+                    </button>
+                  </div>
+                </form>
+              </article>
+
+              <article className="card workspace-panel">
+                <div className="panel-header">
+                  <div>
+                    <p className="eyebrow">Sales History</p>
+                    <h2>{numberFormat(invoiceList.total)} invoices</h2>
+                  </div>
+                </div>
+                <div className="table-like">
+                  {invoiceList.items.length === 0 ? <div className="empty-inline">No invoices yet. Create the first sale.</div> : null}
+                  {invoiceList.items.map((invoice) => (
+                    <div className="table-row" key={invoice.id}>
+                      <div>
+                        <strong>{invoice.invoiceNo}</strong>
+                        <span>{invoice.customer.name} · {readableTime(invoice.soldAt)}</span>
+                      </div>
+                      <div className="customer-row-meta">
+                        <span className="status-pill">{invoice.status}</span>
+                        <strong>{currencyFormat(invoice.totalAmount)}</strong>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </article>
+            </section>
+          </section>
+        ) : null}
+
+        {activeSection !== "dashboard" && activeSection !== "customers" && activeSection !== "packages" && activeSection !== "sales" ? (
           <section className="card empty-state-card module-placeholder">
             <p className="eyebrow">Coming Soon</p>
             <h1>{navItems.find((item) => item.key === activeSection)?.label} OS</h1>
-            <p className="muted-text">This module will be built after Customer OS is verified with real data.</p>
-            <button className="button primary" onClick={() => setActiveSection("customers")} type="button">Back to Customer OS</button>
+            <p className="muted-text">This module will be built after Package + Sale OS is verified with real data.</p>
+            <button className="button primary" onClick={() => setActiveSection("sales")} type="button">Back to Sale OS</button>
           </section>
         ) : null}
       </section>

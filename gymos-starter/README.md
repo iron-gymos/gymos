@@ -33,3 +33,8 @@ npm run dev
 ## Phase 3
 
 Customer OS is available inside `/app` for OWNER users. It supports creating customer profiles, health notes, trainer assignment, and body tracking records.
+
+
+## Phase 4
+
+Package + Sale OS is active. Products are split into `packagemembership_products` and `packagept_products`, and Sales can create multi-item invoices that activate customer packages.

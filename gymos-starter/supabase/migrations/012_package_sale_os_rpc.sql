@@ -1,0 +1,2 @@
+-- Applied in Supabase: 012_package_sale_os_rpc
+-- Adds Package + Sale OS RPCs using packagemembership_products and packagept_products.
