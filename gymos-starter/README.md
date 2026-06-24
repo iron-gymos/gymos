@@ -1,40 +1,38 @@
-# Iron Gym OS V2
+# gymos
 
-Gym management system built with Next.js and Supabase.
+Iron Gym OS V2 - Gym management system built with Next.js and Supabase.
 
-## Current status
+## Current version
+Phase 1 starter with:
 
-- Phase 1: Login + OWNER bootstrap ✅
-- Phase 2: App Shell + Real Dashboard ✅
-
-## URLs
-
-- Public landing page: `/`
-- OWNER login: `/login`
-- Back-office workspace: `/app`
+- Vercel-ready Next.js app
+- Supabase environment variable checks
+- Login page
+- First OWNER bootstrap flow using `bootstrap_current_user_as_owner`
+- Starter dashboard / system status page
 
 ## Environment variables
 
 ```env
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
+NEXT_PUBLIC_SUPABASE_URL=https://wqclubzthcjbrbptbldh.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-or-publishable-key
 ```
 
-Do not put a `service_role` key in frontend or Vercel public environment variables.
+Do not use the Supabase service role key in the frontend.
 
-## Local development
+## Run locally
 
 ```bash
 npm install
 npm run dev
 ```
 
+Open http://localhost:3000
 
-## Phase 3
+## Vercel
 
-Customer OS is available inside `/app` for OWNER users. It supports creating customer profiles, health notes, trainer assignment, and body tracking records.
+Root Directory:
 
-
-## Phase 4
-
-Package + Sale OS is active. Products are split into `packagemembership_products` and `packagept_products`, and Sales can create multi-item invoices that activate customer packages.
+```text
+gymos-starter
+```

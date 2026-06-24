@@ -28,11 +28,10 @@ export default function HomePage() {
             Run your gym like an <span>operating system.</span>
           </h2>
           <p className="hero-copy">
-            Iron Gym OS V2 is being rebuilt from a clean Supabase core schema. This starter page proves the web app, GitHub repo and Vercel deployment are connected. Next step is login, OWNER bootstrap, customer, sales and trainer workflows.
+            Iron Gym OS V2 is being rebuilt from a clean Supabase core schema. This starter page proves the web app, GitHub repo and Vercel deployment are connected before we build login, customer, sales and trainer workflows.
           </p>
           <div className="actions">
-            <a className="button primary" href="/login">Login / Bootstrap OWNER</a>
-            <a className="button" href="#status">View system status</a>
+            <a className="button primary" href="#status">View system status</a>
             <a className="button" href="https://github.com/iron-gymos/gymos" target="_blank" rel="noreferrer">Open GitHub repo</a>
           </div>
         </div>
