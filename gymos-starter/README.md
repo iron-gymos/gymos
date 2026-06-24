@@ -28,3 +28,8 @@ Do not put a `service_role` key in frontend or Vercel public environment variabl
 npm install
 npm run dev
 ```
+
+
+## Phase 3
+
+Customer OS is available inside `/app` for OWNER users. It supports creating customer profiles, health notes, trainer assignment, and body tracking records.
