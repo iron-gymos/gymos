@@ -170,6 +170,20 @@ type SaleCartItem = {
   discountAmount: number;
 };
 
+type PackageFormMode = "membership" | "pt";
+
+type PackageProductForm = {
+  mode: PackageFormMode;
+  code: string;
+  name: string;
+  category: string;
+  description: string;
+  defaultPrice: string;
+  defaultDurationDays: string;
+  defaultSessionCount: string;
+  isActive: boolean;
+};
+
 type AuthState = "checking" | "signed-out" | "ready" | "error";
 type ActiveSection = "dashboard" | "customers" | "packages" | "sales" | "training" | "admin";
 
@@ -198,6 +212,14 @@ const nextModules = [
     copy: "LINE reports, PDFs, exports and calendar automation after core operations are stable.",
     status: "Phase 6"
   }
+];
+
+const ptCategoryOptions = [
+  { value: "PERSONAL_TRAINING", label: "PT · Personal Training" },
+  { value: "PRIVATE_LESSON", label: "PL · Private Lesson" },
+  { value: "KICK_FIT", label: "KF · Kick Fit" },
+  { value: "SPORT_MASSAGE", label: "SM · Sport Massage / นวด" },
+  { value: "KIDS_TRAINING", label: "KID · Kids Training" }
 ];
 
 const emptyCustomerForm = {
@@ -250,6 +272,18 @@ const emptySaleForm = {
   invoiceDiscountAmount: "0",
   paidAmount: "",
   paymentMethod: "TRANSFER"
+};
+
+const emptyPackageForm: PackageProductForm = {
+  mode: "membership",
+  code: "",
+  name: "",
+  category: "PERSONAL_TRAINING",
+  description: "",
+  defaultPrice: "0",
+  defaultDurationDays: "30",
+  defaultSessionCount: "1",
+  isActive: true
 };
 
 function numberFormat(value: number | null | undefined) {
@@ -331,6 +365,10 @@ export function AppShell() {
   const [saleMessage, setSaleMessage] = useState("");
   const [salesLoading, setSalesLoading] = useState(false);
   const [savingSale, setSavingSale] = useState(false);
+  const [showPackageForm, setShowPackageForm] = useState(false);
+  const [editingPackageProduct, setEditingPackageProduct] = useState<SaleProduct | null>(null);
+  const [packageProductForm, setPackageProductForm] = useState<PackageProductForm>(emptyPackageForm);
+  const [savingPackageProduct, setSavingPackageProduct] = useState(false);
 
   const loadDashboard = useCallback(async () => {
     setLoading(true);
@@ -460,6 +498,93 @@ export function AppShell() {
   const saleTotal = Math.max(saleSubtotal - saleItemDiscount - saleInvoiceDiscount, 0);
 
   const defaultBranchId = customerSummary?.branches[0]?.id ?? summary?.branches[0]?.id ?? "";
+
+  function openCreatePackageForm(mode: PackageFormMode) {
+    setEditingPackageProduct(null);
+    setPackageProductForm({
+      ...emptyPackageForm,
+      mode,
+      defaultDurationDays: mode === "membership" ? "30" : "",
+      defaultSessionCount: mode === "pt" ? "1" : ""
+    });
+    setShowPackageForm(true);
+    setSaleMessage("");
+  }
+
+  function openEditPackageForm(product: SaleProduct) {
+    const isMembership = product.productKind === "MB";
+    setEditingPackageProduct(product);
+    setPackageProductForm({
+      mode: isMembership ? "membership" : "pt",
+      code: product.code ?? "",
+      name: product.name,
+      category: isMembership ? "PERSONAL_TRAINING" : product.category,
+      description: product.description ?? "",
+      defaultPrice: String(product.defaultPrice ?? 0),
+      defaultDurationDays: product.defaultDurationDays ? String(product.defaultDurationDays) : "",
+      defaultSessionCount: product.defaultSessionCount ? String(product.defaultSessionCount) : "",
+      isActive: product.isActive
+    });
+    setShowPackageForm(true);
+    setSaleMessage("");
+  }
+
+  function closePackageForm() {
+    setShowPackageForm(false);
+    setEditingPackageProduct(null);
+    setPackageProductForm(emptyPackageForm);
+  }
+
+  async function handleSavePackageProduct(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!supabase) return;
+
+    if (!defaultBranchId && !editingPackageProduct) {
+      setSaleMessage("No branch is available for package creation.");
+      return;
+    }
+
+    setSavingPackageProduct(true);
+    setSaleMessage("");
+
+    try {
+      const isMembership = packageProductForm.mode === "membership";
+      const common = {
+        p_code: optionalText(packageProductForm.code),
+        p_name: packageProductForm.name,
+        p_description: optionalText(packageProductForm.description),
+        p_default_price: optionalNumber(packageProductForm.defaultPrice) ?? 0,
+        p_is_active: packageProductForm.isActive
+      };
+
+      if (isMembership) {
+        const rpcName = editingPackageProduct ? "update_membership_product_for_app" : "create_membership_product_for_app";
+        const { error } = await supabase.rpc(rpcName, {
+          ...(editingPackageProduct ? { p_product_id: editingPackageProduct.id } : { p_branch_id: defaultBranchId }),
+          ...common,
+          p_default_duration_days: optionalNumber(packageProductForm.defaultDurationDays)
+        });
+        if (error) throw error;
+      } else {
+        const rpcName = editingPackageProduct ? "update_pt_product_for_app" : "create_pt_product_for_app";
+        const { error } = await supabase.rpc(rpcName, {
+          ...(editingPackageProduct ? { p_product_id: editingPackageProduct.id } : { p_branch_id: defaultBranchId }),
+          ...common,
+          p_category: packageProductForm.category,
+          p_default_session_count: optionalNumber(packageProductForm.defaultSessionCount)
+        });
+        if (error) throw error;
+      }
+
+      setSaleMessage(editingPackageProduct ? "Package product updated." : "Package product created.");
+      closePackageForm();
+      await Promise.all([loadDashboard(), loadSaleOs()]);
+    } catch (error) {
+      setSaleMessage(error instanceof Error ? error.message : "Could not save package product.");
+    } finally {
+      setSavingPackageProduct(false);
+    }
+  }
 
   async function handleSignOut() {
     if (!supabase) return;
@@ -1107,12 +1232,14 @@ export function AppShell() {
           <section className="customer-os">
             <header className="workspace-header">
               <div>
-                <p className="eyebrow">Phase 4</p>
+                <p className="eyebrow">Phase 4.2</p>
                 <h1>Package OS</h1>
-                <p>Separated product masters: Membership products and PT/service products.</p>
+                <p>Create and edit Membership products separately from PT / PL / KF / SM / KID products.</p>
               </div>
               <div className="workspace-header-actions">
-                <button className="button primary" onClick={() => void loadSaleOs()} type="button">
+                <button className="button primary" onClick={() => openCreatePackageForm("membership")} type="button"><Plus size={16} /> Add Membership</button>
+                <button className="button primary" onClick={() => openCreatePackageForm("pt")} type="button"><Plus size={16} /> Add PT Package</button>
+                <button className="button" onClick={() => void loadSaleOs()} type="button">
                   {salesLoading ? <Loader2 className="spin" size={16} /> : null} Refresh
                 </button>
               </div>
@@ -1126,6 +1253,99 @@ export function AppShell() {
             </section>
 
             {saleMessage ? <div className="notice success customer-notice">{saleMessage}</div> : null}
+
+            {showPackageForm ? (
+              <article className="card customer-form-card">
+                <div className="panel-header">
+                  <div>
+                    <p className="eyebrow">{editingPackageProduct ? "Edit Package" : "New Package"}</p>
+                    <h2>{packageProductForm.mode === "membership" ? "Membership Product" : "PT / Service Product"}</h2>
+                  </div>
+                  <button className="button" onClick={closePackageForm} type="button">Cancel</button>
+                </div>
+
+                <form className="customer-form" onSubmit={handleSavePackageProduct}>
+                  <label>
+                    Package type
+                    <select
+                      disabled={Boolean(editingPackageProduct)}
+                      value={packageProductForm.mode}
+                      onChange={(event) => {
+                        const mode = event.target.value as PackageFormMode;
+                        setPackageProductForm({
+                          ...packageProductForm,
+                          mode,
+                          category: mode === "pt" ? packageProductForm.category : "PERSONAL_TRAINING",
+                          defaultDurationDays: mode === "membership" ? packageProductForm.defaultDurationDays || "30" : "",
+                          defaultSessionCount: mode === "pt" ? packageProductForm.defaultSessionCount || "1" : ""
+                        });
+                      }}
+                    >
+                      <option value="membership">Membership</option>
+                      <option value="pt">PT / PL / KF / SM / KID</option>
+                    </select>
+                  </label>
+
+                  <label>
+                    Code
+                    <input value={packageProductForm.code} onChange={(event) => setPackageProductForm({ ...packageProductForm, code: event.target.value })} placeholder="MB-001 or PT-010" />
+                  </label>
+
+                  <label className="wide-field">
+                    Name
+                    <input value={packageProductForm.name} onChange={(event) => setPackageProductForm({ ...packageProductForm, name: event.target.value })} placeholder="Package name" />
+                  </label>
+
+                  {packageProductForm.mode === "pt" ? (
+                    <label>
+                      Category
+                      <select value={packageProductForm.category} onChange={(event) => setPackageProductForm({ ...packageProductForm, category: event.target.value })}>
+                        {ptCategoryOptions.map((option) => (
+                          <option key={option.value} value={option.value}>{option.label}</option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
+
+                  <label>
+                    Default price
+                    <input value={packageProductForm.defaultPrice} onChange={(event) => setPackageProductForm({ ...packageProductForm, defaultPrice: event.target.value })} placeholder="0" />
+                  </label>
+
+                  {packageProductForm.mode === "membership" ? (
+                    <label>
+                      Duration days
+                      <input value={packageProductForm.defaultDurationDays} onChange={(event) => setPackageProductForm({ ...packageProductForm, defaultDurationDays: event.target.value })} placeholder="30" />
+                    </label>
+                  ) : (
+                    <label>
+                      Sessions
+                      <input value={packageProductForm.defaultSessionCount} onChange={(event) => setPackageProductForm({ ...packageProductForm, defaultSessionCount: event.target.value })} placeholder="10" />
+                    </label>
+                  )}
+
+                  <label>
+                    Status
+                    <select value={packageProductForm.isActive ? "active" : "inactive"} onChange={(event) => setPackageProductForm({ ...packageProductForm, isActive: event.target.value === "active" })}>
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                  </label>
+
+                  <label className="wide-field">
+                    Description
+                    <textarea value={packageProductForm.description} onChange={(event) => setPackageProductForm({ ...packageProductForm, description: event.target.value })} placeholder="Package description" />
+                  </label>
+
+                  <div className="form-actions wide-field">
+                    <button className="button primary" disabled={savingPackageProduct} type="submit">
+                      {savingPackageProduct ? <Loader2 className="spin" size={16} /> : null}
+                      {editingPackageProduct ? "Save package" : "Create package"}
+                    </button>
+                  </div>
+                </form>
+              </article>
+            ) : null}
 
             <section className="workspace-panels">
               <article className="card workspace-panel">
@@ -1141,9 +1361,12 @@ export function AppShell() {
                     <div className="table-row" key={product.id}>
                       <div>
                         <strong>{product.name}</strong>
-                        <span>{product.code} · {product.defaultDurationDays ?? 0} days</span>
+                        <span>{product.code} · {product.defaultDurationDays ?? 0} days · {product.isActive ? "Active" : "Inactive"}</span>
                       </div>
-                      <span className="status-value ok">{currencyFormat(product.defaultPrice)}</span>
+                      <div className="customer-row-meta">
+                        <span className="status-value ok">{currencyFormat(product.defaultPrice)}</span>
+                        <button className="module-link" onClick={() => openEditPackageForm(product)} type="button">Edit</button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1162,9 +1385,12 @@ export function AppShell() {
                     <div className="table-row" key={product.id}>
                       <div>
                         <strong>{product.name}</strong>
-                        <span>{product.code} · {product.category.replaceAll("_", " ")} · {product.defaultSessionCount ?? 0} sessions</span>
+                        <span>{product.code} · {product.category.replaceAll("_", " ")} · {product.defaultSessionCount ?? 0} sessions · {product.isActive ? "Active" : "Inactive"}</span>
                       </div>
-                      <span className="status-value ok">{currencyFormat(product.defaultPrice)}</span>
+                      <div className="customer-row-meta">
+                        <span className="status-value ok">{currencyFormat(product.defaultPrice)}</span>
+                        <button className="module-link" onClick={() => openEditPackageForm(product)} type="button">Edit</button>
+                      </div>
                     </div>
                   ))}
                 </div>

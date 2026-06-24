@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { CheckCircle2, KeyRound, Loader2, LogOut, ShieldCheck, UserRound } from "lucide-react";
@@ -282,10 +283,16 @@ export function AuthPanel() {
         )}
 
         <div className="actions stacked-actions">
-          <button className="button primary full-width" disabled={!user || loading || ownerReady} onClick={handleBootstrapOwner} type="button">
-            {loading ? <Loader2 className="spin" size={16} /> : null}
-            {ownerReady ? "OWNER ready" : "Bootstrap this account as OWNER"}
-          </button>
+          {ownerReady ? (
+            <Link className="button primary full-width" href="/app">
+              Go to Dashboard
+            </Link>
+          ) : (
+            <button className="button primary full-width" disabled={!user || loading} onClick={handleBootstrapOwner} type="button">
+              {loading ? <Loader2 className="spin" size={16} /> : null}
+              Bootstrap this account as OWNER
+            </button>
+          )}
           {user ? (
             <button className="button full-width" disabled={loading} onClick={handleSignOut} type="button">
               <LogOut size={16} /> Sign out

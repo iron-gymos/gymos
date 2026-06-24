@@ -1,0 +1,5 @@
+-- Iron Gym OS V2 - Migration 013
+-- Package Product Management RPCs.
+-- Adds create/update actions for the two real product master tables:
+-- packagemembership_products and packagept_products.
+-- Applied in Supabase as: 013_package_product_management_rpc
